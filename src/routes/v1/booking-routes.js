@@ -4,5 +4,6 @@ const router = express.Router();
 
 router.get("/", BookingController.getBookings);
 router.post("/", BookingController.createBooking);
+router.post("/payment", BookingController.makePayment);
 
 module.exports = router;

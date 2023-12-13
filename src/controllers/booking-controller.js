@@ -20,6 +20,23 @@ async function createBooking(req, res) {
     return res.status(error.statusCode).json(ErrorResponse);
   }
 }
+async function makePayment(req, res) {
+  try {
+    const payment = await BookingService.makePayment({
+      userId: req.body.userId,
+      bookingId: req.body.bookingId,
+      totalCost: req.body.totalCost,
+    });
+    SuccessResponse.message = "Successfully made a payment";
+    SuccessResponse.data = payment;
+    return res.status(StatusCodes.CREATED).json(SuccessResponse);
+  } catch (error) {
+    console.log(error);
+    ErrorResponse.message = "Something went wrong while making a payment";
+    ErrorResponse.error = error;
+    return res.status(error.statusCode).json(ErrorResponse);
+  }
+}
 async function getBookings(req, res) {
   try {
     const allBooking = await BookingService.getBookings();
@@ -81,6 +98,7 @@ async function updateBooking(req, res) {
 }
 module.exports = {
   createBooking,
+  makePayment,
   getBookings,
   getBooking,
   destroyBooking,
