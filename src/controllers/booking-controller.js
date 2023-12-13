@@ -65,18 +65,19 @@ async function getBooking(req, res) {
     return res.status(error.statusCode).json(ErrorResponse);
   }
 }
-async function destroyBooking(req, res) {
+async function cancelBooking(req, res) {
   try {
-    const response = await BookingService.destroyBooking(req.params.id);
-    SuccessResponse.message = `Booking with id ${req.params.id} deleted.`;
+    const response = await BookingService.cancelBooking(req.body);
+    SuccessResponse.message = `Booking with id ${req.body.bookingId} cancelled.`;
     SuccessResponse.data = response;
     SuccessResponse.success = true;
     return res.status(StatusCodes.ACCEPTED).json(SuccessResponse);
   } catch (error) {
+    console.log(error);
     ErrorResponse.message =
-      "Something went wrong while deleting booking with the given id";
+      "Something went wrong while cancelling booking with the given id";
     ErrorResponse.error = error;
-    return res.status(error.statusCode).json(ErrorResponse);
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json(ErrorResponse);
   }
 }
 async function updateBooking(req, res) {
@@ -101,6 +102,6 @@ module.exports = {
   makePayment,
   getBookings,
   getBooking,
-  destroyBooking,
+  cancelBooking,
   updateBooking,
 };

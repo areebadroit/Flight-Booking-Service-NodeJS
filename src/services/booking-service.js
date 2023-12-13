@@ -4,8 +4,8 @@ const { AppError } = require("../utils/errors/app-error");
 const db = require("../models");
 const axios = require("axios");
 const { ServerConfig } = require("../config");
-const { Enums } = require("../utils/common");
-const { BOOKED, INITIATED, CANCELLED, PENDING } = Enums.BOOKING_STATUS;
+const { BOOKING_STATUS } = require("../utils/common/enums");
+const { BOOKED, INITIATED, CANCELLED, PENDING } = BOOKING_STATUS;
 const bookingRepository = new BookingRepository();
 
 async function createBooking(data) {
@@ -29,7 +29,7 @@ async function createBooking(data) {
         bookingPayload,
         transaction
       );
-      const response = axios.patch(
+      const response = await axios.patch(
         `${ServerConfig.FLIGHT_SERVICE}/api/v1/flights/${data.flightId}`,
         {
           seats: data.noOfSeats,
@@ -108,18 +108,52 @@ async function getBooking(id) {
     );
   }
 }
-async function destroyBooking(id) {
+async function cancelBooking(data) {
+  const transaction = await db.sequelize.transaction();
   try {
-    const response = await bookingRepository.destroy(id);
+    const bookingDetails = await bookingRepository.get(
+      data.bookingId,
+      transaction
+    );
+    console.log(bookingDetails);
+    if (bookingDetails.status == CANCELLED) {
+      await transaction.commit();
+      return true;
+    }
+    await axios.patch(
+      `${ServerConfig.FLIGHT_SERVICE}/api/v1/flights/${bookingDetails.flightId}`,
+      {
+        seats: data.noOfSeats,
+        dec: 0,
+      }
+    );
+    await bookingRepository.update(
+      data.bookingId,
+      { status: CANCELLED },
+      transaction
+    );
+    await transaction.commit();
     return response;
   } catch (error) {
+    await transaction.rollback();
     throw new AppError(
-      "Error occured in deleting a booking with the given id",
-      error.statusCode
+      "Error occured in cancelling a booking with the given id",
+      StatusCodes.INTERNAL_SERVER_ERROR
     );
   }
 }
+//Basically cancel the booking past 10 minutes for which payment ha snot been completed and unreserve the seat
+async function cancelDummyBookings() {
+  try {
+    const time = new Date(Date.now() - 1000 * 900); // time 15 mins ago
+    const response = await bookingRepository.cancelDummyBookings(time);
+    return response;
+  } catch (error) {
+    console.log(error);
+  }
+}
 async function updateBooking(id, data) {
+  const transaction = db.sequelize.transaction();
   try {
     const booking = await bookingRepository.update(id, data);
     console.log(booking);
@@ -175,7 +209,8 @@ module.exports = {
   createBooking,
   getBookings,
   getBooking,
-  destroyBooking,
+  cancelBooking,
   updateBooking,
   makePayment,
+  cancelDummyBookings,
 };
