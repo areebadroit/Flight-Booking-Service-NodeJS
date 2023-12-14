@@ -1,15 +1,15 @@
 const { StatusCodes } = require("http-status-codes");
 const { BookingService } = require("../services");
 const { SuccessResponse, ErrorResponse } = require("../utils/common");
+let inMemDb = [];
 async function createBooking(req, res) {
-  console.log(req.body);
   try {
     const booking = await BookingService.createBooking({
       flightId: req.body.flightId,
       userId: req.body.userId,
       noOfSeats: req.body.noofSeats,
     });
-    console.log(booking);
+    console.log("booking: " + booking);
     SuccessResponse.message = "Successfully created an booking";
     SuccessResponse.data = booking;
     return res.status(StatusCodes.CREATED).json(SuccessResponse);
@@ -22,11 +22,21 @@ async function createBooking(req, res) {
 }
 async function makePayment(req, res) {
   try {
+    const idempotencyKey = req.headers["x-idempotency-key"];
+    if (!idempotencyKey) {
+      ErrorResponse.message = "idempotency key missing";
+      return res.status(StatusCodes.BAD_REQUEST).json(ErrorResponse);
+    }
+    if (inMemDb[idempotencyKey]) {
+      ErrorResponse.message = "duplicate request";
+      return res.status(StatusCodes.BAD_REQUEST).json(ErrorResponse);
+    }
     const payment = await BookingService.makePayment({
       userId: req.body.userId,
       bookingId: req.body.bookingId,
       totalCost: req.body.totalCost,
     });
+    inMemDb[idempotencyKey] = idempotencyKey;
     SuccessResponse.message = "Successfully made a payment";
     SuccessResponse.data = payment;
     return res.status(StatusCodes.CREATED).json(SuccessResponse);

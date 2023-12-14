@@ -11,33 +11,28 @@ const bookingRepository = new BookingRepository();
 async function createBooking(data) {
   const transaction = await db.sequelize.transaction();
   try {
-    const result = await db.sequelize.transaction(async (t) => {
-      const flight = await axios.get(
-        `${ServerConfig.FLIGHT_SERVICE}/api/v1/flights/${data.flightId}`
-      );
-      const flightData = flight.data.data;
-      if (parseInt(data.noofSeats) > flightData.totalSeats) {
-        console.log("here");
-        throw new AppError(
-          "Not enough seats available",
-          StatusCodes.BAD_REQUEST
-        );
+    const flight = await axios.get(
+      `${ServerConfig.FLIGHT_SERVICE}/api/v1/flights/${data.flightId}`
+    );
+    const flightData = flight.data.data;
+    if (parseInt(data.noofSeats) > flightData.totalSeats) {
+      console.log("here");
+      throw new AppError("Not enough seats available", StatusCodes.BAD_REQUEST);
+    }
+    const totalBillingAmount = data.noOfSeats * flightData.price;
+    const bookingPayload = { ...data, totalCost: totalBillingAmount };
+    const booking = await bookingRepository.createBooking(
+      bookingPayload,
+      transaction
+    );
+    const response = await axios.patch(
+      `${ServerConfig.FLIGHT_SERVICE}/api/v1/flights/${data.flightId}`,
+      {
+        seats: data.noOfSeats,
       }
-      const totalBillingAmount = data.noOfSeats * flightData.price;
-      const bookingPayload = { ...data, totalCost: totalBillingAmount };
-      const booking = await bookingRepository.createBooking(
-        bookingPayload,
-        transaction
-      );
-      const response = await axios.patch(
-        `${ServerConfig.FLIGHT_SERVICE}/api/v1/flights/${data.flightId}`,
-        {
-          seats: data.noOfSeats,
-        }
-      );
-      await transaction.commit();
-      return booking;
-    });
+    );
+    await transaction.commit();
+    return booking;
 
     // If the execution reaches this line, the transaction has been committed successfully
     // `result` is whatever was returned from the transaction callback (the `user`, in this case)
@@ -123,7 +118,7 @@ async function cancelBooking(data) {
     await axios.patch(
       `${ServerConfig.FLIGHT_SERVICE}/api/v1/flights/${bookingDetails.flightId}`,
       {
-        seats: data.noOfSeats,
+        seats: bookingDetails.noOfSeats,
         dec: 0,
       }
     );
@@ -133,8 +128,9 @@ async function cancelBooking(data) {
       transaction
     );
     await transaction.commit();
-    return response;
+    return true;
   } catch (error) {
+    console.log(error);
     await transaction.rollback();
     throw new AppError(
       "Error occured in cancelling a booking with the given id",
